@@ -2,7 +2,7 @@
 title: "Homework 2 Code"
 subtitle: "DACSS 690C"
 author: "Sophia LaRocca"
-date: last-modified
+date: 1/3/2026
 output: html_document
 ---
 # Set-up
