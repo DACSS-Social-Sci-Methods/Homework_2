@@ -1,0 +1,103 @@
+---
+title: "Homework 2 Code"
+subtitle: "DACSS 690C"
+author: "Sophia LaRocca"
+date: last-modified
+output: html_document
+---
+# Set-up
+```{r}
+
+#first once again, a seed needs to be set to allow the same results across the board
+set.seed(1111)
+
+#then it's time to read in the necessary libraries
+library(igraph) #first is igraph
+library(ggraph) #then ggraph
+library(ggplot2) #then ggplot2
+
+#next reading in the graph so the network can be made
+actors=read_graph("hollywood.graphml",format='graphml')
+
+#get the summary so we know what the attributes are for the nodes
+summary(actors)
+
+
+```
+
+# Re read the graph from GitHub (cloud)
+
+```{r}
+
+#then it's time to actually plot the graph using ggraph. the graph includes the edge weights and the nodes are color coded based on whether or not the actor in question has won an Oscar
+
+ggraph(graph = actors) +
+  geom_edge_link(
+    aes(label = weight), # Use weight for both label and width
+    alpha = 0.5,
+    label_size = 2.5,
+    angle_calc = 'along' # Optional: Draws the label along the edge line
+  ) +
+  geom_node_text(
+    aes(label = name, color = as.factor(wonOscar)),
+    repel = TRUE
+  ) +
+  scale_color_manual(values = c('red', 'blue')) +
+  theme_graph()
+```
+
+# Compute node central measures: eigen_centrality, closeness, betweenness
+
+```{r}
+actors_eigen<- eigen_centrality(actors)$vector #computing the eigen_centrality
+actors_close<- closeness(actors,normalized = T) #computing the closeness
+actors_betw<- betweenness(actors,normalized = T) #computing the betweenness
+```
+
+
+# Prepare a correlation plot with previous measures, and comment the result.
+```{r}
+#next it's time to make the dataframe for the overall centrality using the above central measures
+actors_centrality<-as.data.frame(cbind(actors_eigen,actors_close,actors_betw),stringsAsFactors=F) #first set all the central measures into a dataframe
+names(actors_centrality)<-c('Eigenvector','Closeness','Betweenness') #from here make sure the names are set up
+
+actors_centrality$person<-row.names(actors_centrality) #then setting up a column called person with the names of the rows as its own column
+row.names(actors_centrality)<-NULL #then setting the row names to NULL
+
+#finally actually plotting the correlation plot with the x as the Betweenness, the y as the Closeness and the text size based on the Eigenvector
+
+ggplot(actors_centrality, aes(x=Betweenness, y=Closeness)) + 
+    theme_classic() +
+    geom_text(aes(label=person,size=Eigenvector),show.legend = T,alpha=0.5) 
+
+#Based on the correlation plot, the people with the highest Eigenvector are Robert De Niro and Al Pacino, the ones with the highest closeness are Tom Hanks followed by Leonardo Di Caprio, and the ones with the highest betweenness are Tom Hanks followed by Matt Damon.
+```
+
+# Answer: Is it possible communities are present? Support your answer with computations.
+
+```{r}
+#determining the possibility
+random_network <- sample_gnp(length(V(actors)),p=edge_density(actors)) #making a random network the same length as the actors network
+transitivity(actors)/transitivity(random_network) #comparing the transitivity to see if there are possible communities
+
+#It is possible that communities are present as the transivity of the actors network compared to that of a random network of the same length is greater than 1 which is an indicator of possible communities.
+```
+
+# IF the presence of communities is possible, compute the communities using Girvan-Newman and Louvain algorithms. Plot the best result.
+```{r}
+#first computing the Girvan-Newman algorithm
+partition_g_n_best <- cluster_edge_betweenness(actors) #use cluster_edge_betweenness to get the best partition according to Girvan-Newman 
+max(partition_g_n_best$modularity) #checking what the max modularity value is
+
+#next computing the Louvain algorithm
+partition_l_best <- cluster_louvain(actors) #use cluster_louvain to get the best partition according to Louvain
+max(partition_l_best$modularity) #checking the max modularity value
+
+#since the Girvan-Newman algorithm has the higher max modularity, even if it's just by a little, it has the better result. So it's graphed
+V(actors)$girvanNewman=as.factor(membership(partition_g_n_best))
+
+#graphing the actors with the colors of the nodes based on the girvanNewman results
+base=ggraph(graph =actors,layout = 'fr') + geom_edge_link(alpha=0.2)
+base + geom_node_point(aes(color=girvanNewman), show.legend = T, size=4)
+```
+
